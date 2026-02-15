@@ -2,3 +2,6 @@ segmentation-models-pytorch
 optuna
 torch
 rasterio
+albumentations
+numpy
+geopandas
