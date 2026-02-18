@@ -22,8 +22,6 @@ def main():
                         help="Boundary erosion pixels (default: 2)")
     parser.add_argument("--mmu", type=int, default=4,
                         help="Minimum mapping unit size (default: 4)")
-    parser.add_argument("--confidence_dir", type=str, default=None,
-                        help="Optional directory with confidence maps")
     
     args = parser.parse_args()
     
@@ -49,20 +47,14 @@ def main():
         with rio.open(mask_file) as src:
             mask = src.read(1)
             profile = src.profile
-        
-        # Read confidence map if available
-        confidence = None
-        if args.confidence_dir:
-            conf_path = Path(args.confidence_dir) / mask_file.name
-            if conf_path.exists():
-                with rio.open(conf_path) as src:
-                    confidence = src.read(1)
+            crs = src.crs
+            transform = src.transform
         
         # Clean the mask
         cleaned_mask = cleaner.clean(
             mask=mask,
-            confidence_map=confidence,
-            perform_analysis=False
+            crs=crs,
+            transform=transform
         )
         
         # Save cleaned mask
