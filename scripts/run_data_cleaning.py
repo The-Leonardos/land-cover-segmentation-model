@@ -3,14 +3,13 @@
 import argparse
 from pathlib import Path
 import rasterio as rio
-import numpy as np
 import sys
 from tqdm import tqdm
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from utils.data_cleaning import DataCleaning
+from src.landcover.utils.data_cleaning import DataCleaning
 
 def main():
     parser = argparse.ArgumentParser(description="Run data cleaning on mask files")

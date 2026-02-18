@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 from pathlib import Path
 import rasterio as rio
-from utils.data_preprocessing import Preprocessing
+from src.landcover.utils.data_preprocessing import Preprocessing
 
 class LandCoverDataset(Dataset):
     def __init__(self, root_dir, patch_size=256):

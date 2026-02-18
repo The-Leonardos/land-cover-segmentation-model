@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from datasets.dataset import LandCoverDataset
-from models.model import LandCoverModel
-from utils.util import get_optimizer, get_loss_fn
+from src.landcover.datasets import LandCoverDataset
+from src.landcover.models.model import LandCoverModel
+from src.landcover.utils import get_optimizer, get_loss_fn
 
 DATA_DIR = 'data/tiles'
 BATCH_SIZE = 8

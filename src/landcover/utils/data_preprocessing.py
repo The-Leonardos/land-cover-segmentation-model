@@ -16,7 +16,7 @@ class Preprocessing:
             alb.RandomRotate90(p=0.5),
             alb.RandomBrightnessContrast(p=0.3),
         ])
-        self.boundary = gpd.read_file('../data/bc_boundary/bc_boundary.shp')
+        self.boundary = gpd.read_file('../../../data/bc_boundary/bc_boundary.shp')
         self.min_valid_ratio = 0.7
 
     def run(self, image, mask):

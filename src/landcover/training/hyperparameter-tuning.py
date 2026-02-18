@@ -2,10 +2,10 @@ import torch
 import optuna
 from torch.utils.data import DataLoader
 from pathlib import Path
-from datasets.dataset import LandCoverDataset
-from models.model import LandCoverModel
-from utils.util import get_optimizer, get_loss_fn
-from training.train import train, test
+from src.landcover.datasets import LandCoverDataset
+from src.landcover.models.model import LandCoverModel
+from src.landcover.utils import get_optimizer, get_loss_fn
+from src.landcover.training.train import train, test
 
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'

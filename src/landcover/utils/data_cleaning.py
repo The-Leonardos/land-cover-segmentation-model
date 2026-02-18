@@ -55,7 +55,7 @@ class DataCleaning:
         self.boundary_erosion_pixels = boundary_erosion_pixels
         self.min_mapping_unit = min_mapping_unit
         self.random_seed = random_seed
-        self.boundary = gpd.read_file('../data/bc_boundary/bc_boundary.shp')
+        self.boundary = gpd.read_file('../../../data/bc_boundary/bc_boundary.shp')
 
         # Set random seed
         np.random.seed(random_seed)
