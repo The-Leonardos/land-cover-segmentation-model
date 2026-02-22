@@ -14,14 +14,8 @@ WEIGHT_DECAY = 1e-4
 EPOCHS = 60
 VAL_SPLIT = 0.2
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 NUM_CLASSES = 9
 IN_CHANNELS = 3
-
-
-# Loss Functions
-dice_loss_fn = smp.losses.DiceLoss(mode='multiclass')
-ce_loss_fn = nn.CrossEntropyLoss()
 
 
 def train(model_instance, data_loader, opt, loss_fn):
@@ -77,7 +71,7 @@ def test(model_instance, data_loader, loss_fn):
 
 def metric_out(outputs, masks):
     preds = torch.argmax(outputs, dim=1).long()
-    masks.long()
+    masks = masks.long()
 
     tp, fp, fn, tn = smp.metrics.get_stats(
         preds,

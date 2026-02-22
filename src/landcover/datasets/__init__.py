@@ -1,1 +1,1 @@
-from dataset import LandCoverDataset
+from .dataset import LandCoverDataset

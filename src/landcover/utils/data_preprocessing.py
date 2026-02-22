@@ -4,10 +4,11 @@ import random
 import albumentations as alb
 from rasterio.features import geometry_mask
 import geopandas as gpd
+from landcover import DATA_PATH
 
 
 class Preprocessing:
-    def __init__(self, raster_transform=None, patch_size=256):
+    def __init__(self, raster_transform, crs, patch_size=256):
         self.raster_transform = raster_transform
         self.patch_size = patch_size
         self.transform = albumentations.Compose([
@@ -16,7 +17,7 @@ class Preprocessing:
             alb.RandomRotate90(p=0.5),
             alb.RandomBrightnessContrast(p=0.3),
         ])
-        self.boundary = gpd.read_file('../../../data/bc_boundary/bc_boundary.shp')
+        self.boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp').to_crs(crs)
         self.min_valid_ratio = 0.7
 
     def run(self, image, mask):
@@ -58,11 +59,18 @@ class Preprocessing:
         y = random.randint(0, w - p_w)
 
         image_patch = image[:, x:x+p_h, y:y+p_w]
-        mask_patch = mask[x:x + p_h, y:y + p_w]
-        city_mask_patch = city_mask[x:x + p_h, y:y + p_w]
+        mask_patch = mask[x:x+p_h, y:y+p_w]
+        city_mask_patch = city_mask[x:x+p_h, y:y+p_w]
 
         return image_patch, mask_patch, city_mask_patch
 
     def augment(self, image, mask):
+        # transpose image from (C, H, W) to (H, W, C) for Albumentations
+        image = np.transpose(image, (1, 2, 0))
         augmented = self.transform(image=image, mask=mask)
-        return augmented["image"], augmented["mask"]
+
+        # transpose image from (H, W, C) to (C, H, W) for PyTorch
+        image = np.transpose(augmented['image'], (2, 0, 1))
+        mask = augmented['mask']
+
+        return image, mask

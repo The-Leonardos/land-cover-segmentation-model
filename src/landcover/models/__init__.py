@@ -1,1 +1,1 @@
-from model import LandCoverModel
+from .model import LandCoverModel

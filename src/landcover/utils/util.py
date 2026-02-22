@@ -4,8 +4,8 @@ import segmentation_models_pytorch as smp
 
 
 def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
-    dice_loss = smp.losses.DiceLoss(mode='multiclass')
-    ce_loss = nn.CrossEntropyLoss()
+    dice_loss = smp.losses.DiceLoss(mode='multiclass', ignore_index=255)
+    ce_loss = nn.CrossEntropyLoss(ignore_index=255)
 
     def loss(pred, target):
         return (dice_weight * dice_loss(pred, target)) + ce_weight * ce_loss(pred, target)
