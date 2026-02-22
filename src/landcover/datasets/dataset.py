@@ -12,8 +12,9 @@ class LandCoverDataset(Dataset):
         assert(len(self.image_files) == len(self.mask_files)), 'Images and masks count mismatch'
 
         with rio.open(self.image_files[0]) as src:
+            crs = src.crs
             raster_transform = src.transform
-        self.preprocess = Preprocessing(raster_transform, patch_size)
+        self.preprocess = Preprocessing(raster_transform, crs, patch_size)
 
     def __len__(self):
         return len(self.image_files)
@@ -23,6 +24,7 @@ class LandCoverDataset(Dataset):
         mask_path = self.mask_files[idx]
 
         with rio.open(img_path) as src:
+            # image = src.read([1, 2, 3])
             image = src.read()
 
         with rio.open(mask_path) as src:
