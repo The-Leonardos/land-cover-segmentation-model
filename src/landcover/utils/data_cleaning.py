@@ -12,18 +12,17 @@ Implements the DATA CLEANING pipeline from the thesis:
 
 import logging
 import warnings
-
 import geopandas as gpd
 import numpy as np
 from rasterio.features import geometry_mask
 from scipy.ndimage import binary_dilation, binary_erosion, label, sum_labels
+from landcover import DATA_PATH
 
 warnings.filterwarnings('ignore')
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 
 class DataCleaning:
     """
@@ -51,11 +50,12 @@ class DataCleaning:
             min_mapping_unit: Minimum connected pixels to keep a class (MMU filter) (default: 4)
             random_seed: Random seed for reproducibility
         """
+
         self.ignore_index = ignore_index
         self.boundary_erosion_pixels = boundary_erosion_pixels
         self.min_mapping_unit = min_mapping_unit
         self.random_seed = random_seed
-        self.boundary = gpd.read_file('../../../data/bc_boundary/bc_boundary.shp')
+        self.boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp')
 
         # Set random seed
         np.random.seed(random_seed)
