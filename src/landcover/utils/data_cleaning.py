@@ -16,7 +16,7 @@ import geopandas as gpd
 import numpy as np
 from rasterio.features import geometry_mask
 from scipy.ndimage import binary_dilation, binary_erosion, label, sum_labels
-from landcover import DATA_PATH
+from .. import DATA_PATH
 
 warnings.filterwarnings('ignore')
 

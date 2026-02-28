@@ -1,11 +1,12 @@
 import torch
 import optuna
 from torch.utils.data import DataLoader
-from pathlib import Path
 from src.landcover.datasets import LandCoverDataset
 from src.landcover.models.model import LandCoverModel
 from src.landcover.utils import get_optimizer, get_loss_fn
 from src.landcover.training.train import train, test
+from landcover import DATA_PATH
+from tqdm import tqdm
 
 
 class HyperparameterTuning:
@@ -13,30 +14,30 @@ class HyperparameterTuning:
         self.n_trials = n_trials
         self.epochs = epochs
         self.device = device
-        self.train_dataset = LandCoverDataset('../data/train')
-        self.test_dataset = LandCoverDataset('../data/test')
-        pass
+        self.train_dataset = LandCoverDataset((DATA_PATH / 'dataset' / 'clean' / 'train'), pre_load=True)
+        self.test_dataset = LandCoverDataset((DATA_PATH / 'dataset' / 'clean' / 'test'), pre_load=True)
 
     def _objective(self, trial):
         # hyperparameters
         lr = trial.suggest_float('lr', 1e-5, 5e-4, log=True)
         weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
-        encoder_name = trial.suggest_categorical('encoder_name', ['efficientnet_b0', 'resnet26', 'resnet34', 'resnet50'])
+        encoder_name = trial.suggest_categorical('encoder_name', ['efficientnet-b0', 'resnet34', 'resnet50'])
         encoder_out_stride = trial.suggest_categorical('output_stride', [8, 16])
         aspp_dropout = trial.suggest_float('aspp_dropout', 0.0, 0.5)
         decoder_channels = trial.suggest_categorical('decoder_channels', [64, 128, 256, 512])
-        batch_size = trial.suggest_categorical('batch_size', [4, 8, 16, 32])
+        batch_size = trial.suggest_categorical('batch_size', [4, 8, 16])
         dice_weight = trial.suggest_float('dice_weight', 0.4, 0.8)
 
-        train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True)
-        test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False)
+        # dataloaders
+        train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
         # model
         model = LandCoverModel(
-            encoder_name,
-            'imagenet',
-            9,
-            3,
+            encoder_name=encoder_name,
+            encoder_weights='imagenet',
+            in_channels=4,
+            out_classes=9,
             encoder_output_stride=encoder_out_stride,
             decoder_aspp_dropout=aspp_dropout,
             decoder_channels=decoder_channels,
@@ -52,8 +53,7 @@ class HyperparameterTuning:
 
         # training loop
         best_iou = 0
-
-        for epoch in range(self.epochs):
+        for epoch in tqdm(range(self.epochs), desc=f'Trial {trial.number}', leave=False):
             train(model, train_loader, optimizer, loss_fn)
             _, avg_iou_test = test(model, test_loader, loss_fn)
 
@@ -61,12 +61,10 @@ class HyperparameterTuning:
                 best_iou = avg_iou_test
 
             trial.report(best_iou, epoch)
-
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
         torch.cuda.empty_cache()
-
         return best_iou
 
     def run(self):
