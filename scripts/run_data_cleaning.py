@@ -1,15 +1,15 @@
-from pathlib import Path
-
 import numpy as np
 import rasterio as rio
+from rasterio.features import geometry_mask
+import geopandas as gpd
 from tqdm import tqdm
 from landcover.utils import DataCleaning
+from landcover import DATA_PATH
+
 
 def main():
-    base_path = Path(__file__).resolve().parent.parent / 'data' / 'dataset'
-
-    input_path = base_path / 'raw'
-    output_path = base_path / 'clean'
+    input_path = DATA_PATH / 'dataset' / 'raw'
+    output_path = DATA_PATH / 'dataset' / 'clean'
 
     # create output path if missing
     output_path.mkdir(parents=True, exist_ok=True)
@@ -78,6 +78,29 @@ def main():
             np.save(out_file.with_suffix('.npy'), image.astype(np.uint8))
 
         print(f'\nDone! Images saved to {clean_images_path} as numpy arrays')
+
+        if split == splits[0]:
+            # save metadata and city mask
+            print(f'\nSaving city mask')
+
+            with rio.open(image_files[0]) as src:
+                image = src.read()
+                crs = src.crs
+                transform = src.transform
+
+            _, h, w = image.shape
+            boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp').to_crs(crs)
+            city_mask = geometry_mask(
+                [feature['geometry'] for feature in boundary.to_dict('records')],
+                transform=transform,
+                invert=True,
+                out_shape=(h, w),
+            )
+
+            city_mask_file = DATA_PATH / 'city_mask.npy'
+            np.save(city_mask_file, city_mask)
+
+            print(f'\nDone! City mask saved to {city_mask_file}')
 
     print(f"\nCleaning Complete!")
 
