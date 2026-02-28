@@ -7,7 +7,7 @@ if __name__ == '__main__':
 
     print('device:', device)
 
-    tuning = HyperparameterTuning(10, 2, device)
+    tuning = HyperparameterTuning(10, 30, device)
 
     df, _ = tuning.run()
 
