@@ -71,7 +71,7 @@ class HyperparameterTuning:
         study = optuna.create_study(direction='maximize')
         study.optimize(self._objective, n_trials=self.n_trials)
 
-        return study.trials_dataframe(), study.best_params_
+        return study.trials_dataframe(), study.best_params
 
 
 
