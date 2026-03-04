@@ -1,3 +1,9 @@
+# ignore config with real API keys
+config.env
+
+# ignore wandb local runs
+data/wandb/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

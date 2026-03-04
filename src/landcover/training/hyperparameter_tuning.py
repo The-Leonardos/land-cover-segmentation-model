@@ -1,12 +1,13 @@
 import torch
 import optuna
 from torch.utils.data import DataLoader
-from src.landcover.datasets import LandCoverDataset
-from src.landcover.models.model import LandCoverModel
-from src.landcover.utils import get_optimizer, get_loss_fn
-from src.landcover.training.train import train, test
+from landcover.datasets import LandCoverDataset
+from landcover.models.model import LandCoverModel
+from landcover.utils import get_optimizer, get_loss_fn
+from landcover.training.train import train, test
 from landcover import DATA_PATH
 from tqdm import tqdm
+import wandb
 
 
 class HyperparameterTuning:
@@ -14,19 +15,49 @@ class HyperparameterTuning:
         self.n_trials = n_trials
         self.epochs = epochs
         self.device = device
-        self.train_dataset = LandCoverDataset((DATA_PATH / 'dataset' / 'clean' / 'train'), pre_load=True)
-        self.test_dataset = LandCoverDataset((DATA_PATH / 'dataset' / 'clean' / 'test'), pre_load=True)
+        self.train_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "train"), pre_load=True)
+        self.test_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "test"), pre_load=True)
+
+    def run(self):
+        # perform optuna study
+        study = optuna.create_study(direction="maximize")
+        study.optimize(
+            self._objective,
+            n_trials=self.n_trials,
+        )
+
+        return study.trials_dataframe(), study.best_params
 
     def _objective(self, trial):
         # hyperparameters
-        lr = trial.suggest_float('lr', 1e-5, 5e-4, log=True)
-        weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
-        encoder_name = trial.suggest_categorical('encoder_name', ['efficientnet-b0', 'resnet34', 'resnet50'])
-        encoder_out_stride = trial.suggest_categorical('output_stride', [8, 16])
-        aspp_dropout = trial.suggest_float('aspp_dropout', 0.0, 0.5)
-        decoder_channels = trial.suggest_categorical('decoder_channels', [64, 128, 256, 512])
-        batch_size = trial.suggest_categorical('batch_size', [4, 8, 16])
-        dice_weight = trial.suggest_float('dice_weight', 0.4, 0.8)
+        lr = trial.suggest_float("lr", 1e-5, 5e-4, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+        encoder_name = trial.suggest_categorical("encoder_name", ["efficientnet-b0", "resnet34", "resnet50"])
+        encoder_out_stride = trial.suggest_categorical("output_stride", [8, 16])
+        aspp_dropout = trial.suggest_float("aspp_dropout", 0.0, 0.5)
+        decoder_channels = trial.suggest_categorical("decoder_channels", [64, 128, 256, 512])
+        batch_size = trial.suggest_categorical("batch_size", [4, 8, 16, 32])
+        dice_weight = trial.suggest_float("dice_weight", 0.4, 0.8)
+
+        # initialize wandb run
+        wandb.init(
+            project="land-cover-mapping",
+            name=f"DeepLabV3+/tuning/trial-{trial.number}",
+            config={
+                "lr": lr,
+                "weight_decay": weight_decay,
+                "encoder_name": encoder_name,
+                "encoder_out_stride": encoder_out_stride,
+                "aspp_dropout": aspp_dropout,
+                "decoder_channels": decoder_channels,
+                "batch_size": batch_size,
+                "dice_weight": dice_weight
+            },
+            dir=str(DATA_PATH),
+            notes="This run displays the loss and iou graphs for the "
+                  "training and testing sets during hyperparameter tuning.",
+            reinit=True
+        )
 
         # dataloaders
         train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
@@ -35,7 +66,7 @@ class HyperparameterTuning:
         # model
         model = LandCoverModel(
             encoder_name=encoder_name,
-            encoder_weights='imagenet',
+            encoder_weights="imagenet",
             in_channels=4,
             out_classes=9,
             encoder_output_stride=encoder_out_stride,
@@ -53,25 +84,26 @@ class HyperparameterTuning:
 
         # training loop
         best_iou = 0
-        for epoch in tqdm(range(self.epochs), desc=f'Trial {trial.number}', leave=False):
-            train(model, train_loader, optimizer, loss_fn)
-            _, avg_iou_test = test(model, test_loader, loss_fn)
+        for epoch in tqdm(range(self.epochs), desc=f"Trial {trial.number}", leave=False):
+            avg_loss_train, avg_iou_train = train(model, train_loader, optimizer, loss_fn)
+            avg_loss_test, avg_iou_test = test(model, test_loader, loss_fn)
 
             if avg_iou_test > best_iou:
                 best_iou = avg_iou_test
 
+            wandb.log({
+                "train_loss": avg_loss_train,
+                "test_loss": avg_loss_test,
+                "train_iou": avg_iou_train,
+                "test_iou": avg_iou_test,
+                "best_iou": best_iou
+            })
+
             trial.report(best_iou, epoch)
             if trial.should_prune():
+                wandb.finish()
                 raise optuna.exceptions.TrialPruned()
 
         torch.cuda.empty_cache()
+        wandb.finish()
         return best_iou
-
-    def run(self):
-        study = optuna.create_study(direction='maximize')
-        study.optimize(self._objective, n_trials=self.n_trials)
-
-        return study.trials_dataframe(), study.best_params
-
-
-
