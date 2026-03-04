@@ -8,3 +8,5 @@ albumentations
 numpy
 geopandas
 tqdm
+wandb
+python-dotenv
