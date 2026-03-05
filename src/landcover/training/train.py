@@ -13,19 +13,18 @@ LR = 1e-4
 WEIGHT_DECAY = 1e-4
 EPOCHS = 60
 VAL_SPLIT = 0.2
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 NUM_CLASSES = 9
 IN_CHANNELS = 3
 
 
-def train(model_instance, data_loader, opt, loss_fn):
+def train(model_instance, data_loader, opt, loss_fn, device="cpu"):
     model_instance.train()
     running_loss = 0
     running_iou = 0
 
     for images, masks in data_loader:
-        images = images.to(DEVICE)
-        masks = masks.to(DEVICE)
+        images = images.to(device)
+        masks = masks.to(device)
 
         opt.zero_grad()
 
@@ -35,6 +34,7 @@ def train(model_instance, data_loader, opt, loss_fn):
         iou = metric_out(outputs, masks)
 
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model_instance.parameters(), 1.0)
         opt.step()
 
         running_loss += loss.item()
@@ -45,15 +45,15 @@ def train(model_instance, data_loader, opt, loss_fn):
 
     return avg_loss, avg_iou
 
-def test(model_instance, data_loader, loss_fn):
+def test(model_instance, data_loader, loss_fn, device="cpu"):
     model_instance.eval()
     running_loss = 0
     running_iou = 0
     
     with torch.no_grad():
         for images, masks in data_loader:
-            images = images.to(DEVICE)
-            masks = masks.to(DEVICE)
+            images = images.to(device)
+            masks = masks.to(device)
 
             outputs = model_instance(images)
 
@@ -92,13 +92,15 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     model = LandCoverModel(
         'efficientnet_b0',
         'imagenet',
         IN_CHANNELS,
         NUM_CLASSES,
         activation=None
-    ).to(DEVICE)
+    ).to(device)
 
     optimizer = get_optimizer(model, lr=LR, weight_decay=WEIGHT_DECAY)
 
