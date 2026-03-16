@@ -6,6 +6,14 @@ import wandb
 from dotenv import load_dotenv
 import os
 
+# ENCODERS TO TEST
+        # 1. resnet50 (DONE)
+        # 3. resnet34 (TO BE TESTED)
+        # 4. resnet101 (DONE)
+        # 5. efficientnet_b3
+        # 6. densenet-169
+        # 7. densenet-201
+
 if __name__ == "__main__":
     load_dotenv("../config.env")
     KEY = os.getenv("WANDB_API_KEY")
@@ -18,7 +26,7 @@ if __name__ == "__main__":
     print(f"[device]: {device.upper()}")
 
     # hyperparameter tuning instance
-    tuning = HyperparameterTuning(3, 5, device)
+    tuning = HyperparameterTuning(60, 25, device)
 
     # trial runs
     df, best_params = tuning.run()

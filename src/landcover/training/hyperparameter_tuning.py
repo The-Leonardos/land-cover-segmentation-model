@@ -10,6 +10,7 @@ from tqdm import tqdm
 import wandb
 
 
+
 class HyperparameterTuning:
     def __init__(self, n_trials, epochs, device):
         self.n_trials = n_trials
@@ -23,7 +24,7 @@ class HyperparameterTuning:
         study = optuna.create_study(
             direction="maximize",
             pruner=optuna.pruners.MedianPruner(
-                n_startup_trials=5,
+                n_startup_trials=10,
                 n_warmup_steps=5,
                 interval_steps=1,
             )
@@ -33,30 +34,59 @@ class HyperparameterTuning:
             n_trials=self.n_trials,
         )
 
+        best_trial = study.best_trial
+        best_params = best_trial.params
+        best_value = best_trial.value
+
+        wandb.init(
+            project="land-cover-mapping",
+            name=f"ResNet50/tuning/v0/best_trial",                                                                          # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version and encoder name)
+            config=best_params,
+            notes=f"Best trial achieved test IoU of {best_value:.4f}",
+            reinit=True
+        )
+        wandb.log({
+            "best_test_iou": best_value,
+        })
+        wandb.finish()
+
         return study.trials_dataframe(), study.best_params
 
     def _objective(self, trial):
         # hyperparameters
-        lr = trial.suggest_float("lr", 1e-5, 5e-4, log=True)
-        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        # encoder_name = trial.suggest_categorical("encoder_name", ["efficientnet-b0", "resnet34", "resnet50"])
-        encoder_name = trial.suggest_categorical("encoder_name", ["efficientnet-b0"])
+        lr = trial.suggest_float("lr", 1e-5, 5e-3, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
+        encoder_name = trial.suggest_categorical("encoder_name", ["resnet34"])                                              # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
         encoder_out_stride = trial.suggest_categorical("output_stride", [8, 16])
-        aspp_dropout = trial.suggest_float("aspp_dropout", 0.0, 0.8)
+        encoder_depth = trial.suggest_categorical("encoder_depth", [4, 5])
+        aspp_dropout = trial.suggest_float("aspp_dropout", 0.0, 0.5)
         decoder_channels = trial.suggest_categorical("decoder_channels", [64, 128, 256, 512])
-        batch_size = trial.suggest_categorical("batch_size", [4, 8, 16, 32, 64])
+        decoder_atrous_rates = trial.suggest_categorical(
+            "decoder_atrous_rates",
+            [
+                (6, 12, 18),
+                (12, 24, 36),
+                (3, 6, 9),
+                (12, 18, 24)
+            ]
+        )
+        decoder_aspp_separable = trial.suggest_categorical("decoder_aspp_separable", [True, False])
+        batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64])
         dice_weight = trial.suggest_float("dice_weight", 0.4, 0.8)
 
         # initialize wandb run
         wandb.init(
             project="land-cover-mapping",
-            name=f"DeepLabV3+/tuning/v0/trial-{trial.number}",
+            name=f"ResNet50/tuning/v0/trial-{trial.number}",                                                                # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
             config={
                 "lr": lr,
                 "weight_decay": weight_decay,
                 "encoder_name": encoder_name,
                 "encoder_out_stride": encoder_out_stride,
+                "encoder_depth": encoder_depth,
                 "aspp_dropout": aspp_dropout,
+                "decoder_atrous_rates": decoder_atrous_rates,
+                "decoder_aspp_separable": decoder_aspp_separable,
                 "decoder_channels": decoder_channels,
                 "batch_size": batch_size,
                 "dice_weight": dice_weight
@@ -78,7 +108,10 @@ class HyperparameterTuning:
             in_channels=4,
             out_classes=9,
             encoder_output_stride=encoder_out_stride,
+            encoder_depth=encoder_depth,
             decoder_aspp_dropout=aspp_dropout,
+            decoder_atrous_rates=decoder_atrous_rates,
+            decoder_aspp_separable=decoder_aspp_separable,
             decoder_channels=decoder_channels,
             activation=None
         ).to(self.device)
