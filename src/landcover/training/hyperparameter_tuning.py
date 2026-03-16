@@ -40,7 +40,7 @@ class HyperparameterTuning:
 
         wandb.init(
             project="land-cover-mapping",
-            name=f"ResNet50/tuning/v0/best_trial",                                                                          # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version and encoder name)
+            name=f"ResNet34/tuning/v0/best_trial",                                                                          # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version and encoder name)
             config=best_params,
             notes=f"Best trial achieved test IoU of {best_value:.4f}",
             reinit=True
@@ -77,7 +77,7 @@ class HyperparameterTuning:
         # initialize wandb run
         wandb.init(
             project="land-cover-mapping",
-            name=f"ResNet50/tuning/v0/trial-{trial.number}",                                                                # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
+            name=f"ResNet34/tuning/v0/trial-{trial.number}",                                                                # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
             config={
                 "lr": lr,
                 "weight_decay": weight_decay,
