@@ -1,20 +1,5 @@
 import segmentation_models_pytorch as smp
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-
-from src.landcover.datasets import LandCoverDataset
-from src.landcover.models.model import LandCoverModel
-from src.landcover.utils import get_optimizer, get_loss_fn
-
-DATA_DIR = 'data/tiles'
-BATCH_SIZE = 8
-LR = 1e-4
-WEIGHT_DECAY = 1e-4
-EPOCHS = 60
-VAL_SPLIT = 0.2
-NUM_CLASSES = 9
-IN_CHANNELS = 3
 
 
 def train(model_instance, data_loader, opt, loss_fn, device="cpu"):
@@ -77,7 +62,7 @@ def metric_out(outputs, masks):
         preds,
         masks,
         mode='multiclass',
-        num_classes=NUM_CLASSES,
+        num_classes=9,
     )
 
     iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction='macro')
@@ -85,27 +70,3 @@ def metric_out(outputs, masks):
     return iou
 
 
-if __name__ == '__main__':
-    train_dataset = LandCoverDataset('data/train')
-    test_dataset = LandCoverDataset('data/test')
-
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    model = LandCoverModel(
-        'efficientnet_b0',
-        'imagenet',
-        IN_CHANNELS,
-        NUM_CLASSES,
-        activation=None
-    ).to(device)
-
-    optimizer = get_optimizer(model, lr=LR, weight_decay=WEIGHT_DECAY)
-
-    loss_function = get_loss_fn()
-
-    for epoch in range(EPOCHS):
-        avg_loss_train, avg_iou_train = train(model, train_loader, optimizer, loss_function)
-        avg_loss_test, avg_iou_test = test(model, test_loader, loss_function)
