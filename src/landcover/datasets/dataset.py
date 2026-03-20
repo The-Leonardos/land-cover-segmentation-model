@@ -14,6 +14,7 @@ class LandCoverDataset(Dataset):
         """
         self.root_dir = Path(root_dir)
         self.pre_load = pre_load
+        self.patch_size = patch_size
 
         # get image and mask files
         self.image_files = sorted((self.root_dir / 'images').glob('*.npy'))
@@ -30,7 +31,11 @@ class LandCoverDataset(Dataset):
             self.images = [np.load(f) for f in self.image_files]
             self.masks = [np.load(f) for f in self.mask_files]
 
-        self.preprocess = Preprocessing(patch_size)
+        self.preprocess = Preprocessing(self.patch_size)
+
+    def set_patch_size(self, patch_size):
+        self.patch_size = patch_size
+        self.preprocess = Preprocessing(self.patch_size)
 
     def __len__(self):
         return len(self.image_files)

@@ -8,11 +8,12 @@ import os
 
 # ENCODERS TO TEST
         # 1. resnet50 (DONE)
-        # 3. resnet34 (TO BE TESTED)
+        # 3. resnet34 (DONE)
         # 4. resnet101 (DONE)
-        # 5. efficientnet_b3
-        # 6. densenet-169
-        # 7. densenet-201
+        # 5. efficientnet_b0 (DONE)
+        # 6. efficientnet_b3 (TO BE TESTED)
+        # 7. densenet-169
+        # 8. densenet-201
 
 if __name__ == "__main__":
     load_dotenv("../config.env")
@@ -24,6 +25,7 @@ if __name__ == "__main__":
     # check device availability
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[device]: {device.upper()}")
+    torch.backends.cudnn.benchmark = True
 
     # hyperparameter tuning instance
     tuning = HyperparameterTuning(60, 25, device)

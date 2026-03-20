@@ -40,7 +40,7 @@ class HyperparameterTuning:
 
         wandb.init(
             project="land-cover-mapping",
-            name=f"ResNet34/tuning/v0/best_trial",                                                                          # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version and encoder name)
+            name=f"ResNet101/tuning/v0/best_trial",                                                                          # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version and encoder name)
             config=best_params,
             notes=f"Best trial achieved test IoU of {best_value:.4f}",
             reinit=True
@@ -56,7 +56,7 @@ class HyperparameterTuning:
         # hyperparameters
         lr = trial.suggest_float("lr", 1e-5, 5e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
-        encoder_name = trial.suggest_categorical("encoder_name", ["resnet34"])                                              # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
+        encoder_name = trial.suggest_categorical("encoder_name", ["resnet101"])                                              # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
         encoder_out_stride = trial.suggest_categorical("output_stride", [8, 16])
         encoder_depth = trial.suggest_categorical("encoder_depth", [4, 5])
         aspp_dropout = trial.suggest_float("aspp_dropout", 0.0, 0.5)
@@ -73,11 +73,12 @@ class HyperparameterTuning:
         decoder_aspp_separable = trial.suggest_categorical("decoder_aspp_separable", [True, False])
         batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64])
         dice_weight = trial.suggest_float("dice_weight", 0.4, 0.8)
+        patch_size = trial.suggest_categorical("patch_size", [128, 256, 512])
 
         # initialize wandb run
         wandb.init(
             project="land-cover-mapping",
-            name=f"ResNet34/tuning/v0/trial-{trial.number}",                                                                # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
+            name=f"ResNet101/tuning/v0/trial-{trial.number}",                                                                # PLEASE CHANGE IF YOU WILL RUN IT AGAIN (the version)
             config={
                 "lr": lr,
                 "weight_decay": weight_decay,
@@ -89,7 +90,8 @@ class HyperparameterTuning:
                 "decoder_aspp_separable": decoder_aspp_separable,
                 "decoder_channels": decoder_channels,
                 "batch_size": batch_size,
-                "dice_weight": dice_weight
+                "dice_weight": dice_weight,
+                "patch_size": patch_size,
             },
             dir=str(DATA_PATH),
             notes="This run displays the loss and iou graphs for the "
@@ -98,6 +100,9 @@ class HyperparameterTuning:
         )
 
         # dataloaders
+        self.train_dataset.set_patch_size(patch_size)
+        self.test_dataset.set_patch_size(patch_size)
+
         train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
         test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
