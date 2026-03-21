@@ -28,7 +28,13 @@ if __name__ == "__main__":
     torch.backends.cudnn.benchmark = True
 
     # hyperparameter tuning instance
-    tuning = HyperparameterTuning(60, 25, "efficientnet_b0","v0", device)
+    tuning = HyperparameterTuning(
+        n_trials=60,
+        epochs=25, 
+        encoder="efficientnet_b0",
+        version="v0",
+        device=device
+    )
 
     # trial runs
     df, best_params = tuning.run()
