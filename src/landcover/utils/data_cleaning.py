@@ -1,15 +1,3 @@
-"""
-Data Cleaning Module for Land Cover Segmentation
-
-Implements the DATA CLEANING pipeline from the thesis:
-1. Remove Irrelevant Classes (Snow & Ice)
-2. Void / Cloud Filtering (Patch-Level)
-3. Class Distribution Analysis
-4. Boundary Pixel Erosion
-5. Minimum Mapping Unit Filtering
-
-"""
-
 import logging
 import warnings
 import geopandas as gpd
@@ -18,96 +6,104 @@ from rasterio.features import geometry_mask
 from scipy.ndimage import binary_dilation, binary_erosion, label, sum_labels
 from .. import DATA_PATH
 
-warnings.filterwarnings('ignore')
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# setup warnings and logger
+warnings.filterwarnings('ignore')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(DATA_PATH / "logs" / "data_cleaning.log"),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
+
 class DataCleaning:
-    """
-    Data cleaning pipeline for land cover segmentation masks.
-    
-    Implements all DATA CLEANING steps from the thesis methodology:
-    - Apply City Boundary Mask - Step 1
-    - Boundary Pixel Erosion - Step 2
-    - Minimum Mapping Unit Filtering - Step 3
-    
-    Reference: Thesis Section 3.2 (Image Prediction Model Preprocessing)
-    """
-
-    def __init__(self,
-                 ignore_index: int = 255,
-                 boundary_erosion_pixels: int = 2,
-                 min_mapping_unit: int = 4,
-                 random_seed: int = 42):
-        """
-        Initialize the DataCleaning pipeline.
-        
-        Args:
-            ignore_index: Value for ignored pixels in loss computation (default: 255)
-            boundary_erosion_pixels: Number of pixels to erode from class boundaries (default: 2)
-            min_mapping_unit: Minimum connected pixels to keep a class (MMU filter) (default: 4)
-            random_seed: Random seed for reproducibility
-        """
-
+    def __init__(self, ignore_index: int = 255, boundary_erosion_pixels: int = 2, min_mapping_unit: int = 4):
         self.ignore_index = ignore_index
         self.boundary_erosion_pixels = boundary_erosion_pixels
         self.min_mapping_unit = min_mapping_unit
-        self.random_seed = random_seed
         self.boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp')
 
         # Set random seed
-        np.random.seed(random_seed)
+        np.random.seed(42)
 
-        # Valid classes for Baguio (all except snow_and_ice)
-        self.valid_classes = [i for i in range(8)]  # 0-7 only, exclude 8 (snow/ice)
-
+        # initial log
         logger.info(f"DataCleaning initialized: "
                     f"ignore_index={ignore_index}, "
                     f"erosion={boundary_erosion_pixels}px, "
                     f"MMU={min_mapping_unit}px, ")
 
     # ==================== COMPLETE DATA CLEANING PIPELINE ====================
+    def clean_image(self, image):
+        """
+        Apply the complete data cleaning pipeline to an image.
 
-    def clean(self, mask: np.ndarray, crs, transform) -> np.ndarray:
+        :param image: raw sattelite image to clean
+        :return: cleaned image
+        """
+        # make a copy of the image
+        cleaned_image = image.astype(np.float32).copy()
+
+        # fill NaN values with band-wise median values
+        cleaned_image = self._fill_nan_with_median(cleaned_image)
+
+        # log final status
+        nan_values = np.isnan(cleaned_image).sum()
+        min_val, max_val = np.min(cleaned_image), np.max(cleaned_image)
+        logger.info(f"[Image] Cleaning Complete: {nan_values} NaN values | minimum value: {min_val}  | maximum value: {max_val} | {cleaned_image.dtype}")
+
+        return cleaned_image
+
+    def clean_mask(self, mask, crs, transform):
         """
         Apply the complete data cleaning pipeline to a mask.
 
-        Pipeline order:
-        1. Fix outside boundary labels
-        2. Apply boundary pixel erosion
-        3. Apply minimum mapping unit filtering
-
-        Args:
-            mask: Ground truth mask to clean
-            crs: Coordinate reference system of the raster
-            transform: affine transform of the raster
-
-        Returns:
-            Cleaned mask
+        :param mask: ground truth mask to clean
+        :param crs: coordinate reference system of the raster
+        :param transform: affine transform of the raster
+        :return: cleaned mask
         """
-        # Make a copy to avoid modifying original
+        # make a copy of the mask
         cleaned_mask = mask.copy()
 
-        # Step 1: Fix outside boundary labels
+        # fix outside boundary labels
         cleaned_mask = self._apply_boundary_mask(cleaned_mask, crs, transform)
 
-        # Step 2: Apply boundary pixel erosion
+        # apply boundary pixel erosion
         cleaned_mask = self._erode_boundaries(cleaned_mask)
 
-        # Step 3: Apply minimum mapping unit filtering
+        # apply minimum mapping unit filtering
         cleaned_mask = self._apply_mmp_filter(cleaned_mask)
 
-        # Log final stats
+        # log final status
         n_ignore = np.sum(cleaned_mask == self.ignore_index)
         n_total = cleaned_mask.size
         ignore_percent = (n_ignore / n_total) * 100
-        logger.info(f"Cleaning complete: {n_ignore}/{n_total} pixels ({ignore_percent:.2f}%) set to ignore_index")
+        logger.info(f"[Mask] Cleaning complete: {n_ignore}/{n_total} pixels | {ignore_percent:.2f}% set to ignore_index")
 
         return cleaned_mask
 
-    # ==================== DATA CLEANING STEP 1: FIX BOUNDARY LABELS ====================
+    # ==================== DATA CLEANING: IMAGES ====================
+    def _fill_nan_with_median(self, image):
+        for b in range(image.shape[0]):
+            band = image[b]
+            mask = np.isnan(band)
+
+            if np.any(mask):
+                if np.all(mask):
+                    band[mask] = 0.0
+                else:
+                    median = np.nanmedian(band)
+                    band[mask] = median
+
+        return image
+
+    # ==================== DATA CLEANING: MASKS ====================
+
+    # -------------------- Fix Boundary Labels --------------------
 
     def _apply_boundary_mask(self, mask, crs, transform) -> np.ndarray:
         """
@@ -118,7 +114,6 @@ class DataCleaning:
         Returns:
             Mask with outside boundary pixels set to ignore_index
         """
-
         relabeled_mask = mask.copy()
 
         boundary = self.boundary.to_crs(crs)
@@ -135,7 +130,7 @@ class DataCleaning:
 
         return relabeled_mask
 
-    # ==================== DATA CLEANING STEP 2: BOUNDARY PIXEL EROSION ====================
+    # -------------------- Boundary Pixel Erosion --------------------
 
     def _erode_boundaries(self, mask: np.ndarray) -> np.ndarray:
         """
@@ -221,7 +216,7 @@ class DataCleaning:
 
         return adjacent
 
-    # ==================== DATA CLEANING STEP 3: MINIMUM MAPPING UNIT FILTERING ====================
+    # -------------------- Minimum Mapping Unit Filtering --------------------
 
     def _apply_mmp_filter(self, mask: np.ndarray) -> np.ndarray:
         """
