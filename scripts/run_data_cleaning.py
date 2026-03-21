@@ -8,8 +8,8 @@ from landcover import DATA_PATH
 
 
 def main():
-    input_path = DATA_PATH / 'dataset' / 'raw'
-    output_path = DATA_PATH / 'dataset' / 'clean'
+    input_path = DATA_PATH / "dataset" / "raw"
+    output_path = DATA_PATH / "dataset" / "clean"
 
     # create output path if missing
     output_path.mkdir(parents=True, exist_ok=True)
@@ -20,31 +20,47 @@ def main():
     # initialize cleaner
     cleaner = DataCleaning(
         ignore_index=255,
-        boundary_erosion_pixels=2,
+        boundary_erosion_pixels=0,
         min_mapping_unit=4
     )
 
     # clean data per split
     for split in splits:
-        raw_masks_path = input_path / split / 'masks'
-        clean_masks_path = output_path / split / 'masks'
-        raw_images_path = input_path / split / 'images'
-        clean_images_path = output_path / split / 'images'
+        # raw and clean directory paths
+        raw_images_path = input_path / split / "images"
+        clean_images_path = output_path / split / "images"
+        raw_masks_path = input_path / split / "masks"
+        clean_masks_path = output_path / split / "masks"
 
         # create clean masks and images paths if missing
         clean_masks_path.mkdir(parents=True, exist_ok=True)
         clean_images_path.mkdir(parents=True, exist_ok=True)
 
         # Get all mask files
-        mask_files = (list(raw_masks_path.glob('*.tif')) + list(raw_masks_path.glob('*.tiff')))
-        print(f'[{split}] Found {len(mask_files)} mask files to process')
+        mask_files = (list(raw_masks_path.glob("*.tif")) + list(raw_masks_path.glob("*.tiff")))
+        print(f"[{split}] Found {len(mask_files)} mask files to process")
 
         # get all image files
-        image_files = (list(raw_images_path.glob('*.tif')) + list(raw_images_path.glob('*.tiff')))
-        print(f'[{split}] Found {len(image_files)} images to process')
+        image_files = (list(raw_images_path.glob("*.tif")) + list(raw_images_path.glob("*.tiff")))
+        print(f"[{split}] Found {len(image_files)} images to process")
+
+        # clean all images in the split
+        for image_file in tqdm(image_files, desc=f"[Images] Cleaning {split} split", leave=False):
+            # read image
+            with rio.open(image_file) as src:
+                image = src.read()
+
+            # clean image
+            cleaned_image = cleaner.clean_image(image)
+
+            # save cleaned image
+            out_file = clean_images_path / image_file.name
+            np.save(out_file.with_suffix(".npy"), cleaned_image.astype(np.float32))
+
+        print(f"\n[Images] Cleaned images saved to {clean_images_path}")
 
         # clean all masks in the split
-        for mask_file in tqdm(mask_files, desc=f'[MASKS] Cleaning {split} split', leave=False):
+        for mask_file in tqdm(mask_files, desc=f"[MASKS] Cleaning {split} split", leave=False):
             # Read mask
             with rio.open(mask_file) as src:
                 mask = src.read(1)
@@ -53,35 +69,19 @@ def main():
                 transform = src.transform
 
             # Clean the mask
-            cleaned_mask = cleaner.clean(
-                mask=mask,
-                crs=crs,
-                transform=transform
-            )
+            cleaned_mask = cleaner.clean_mask(mask, crs, transform)
 
             # Save cleaned mask
             out_file = clean_masks_path / mask_file.name
             profile.update(dtype=rio.uint8, nodata=255)
+            np.save(out_file.with_suffix(".npy"), cleaned_mask.astype(np.uint8))
 
-            np.save(out_file.with_suffix('.npy'), cleaned_mask.astype(np.uint8))
+        print(f"\n[Masks] Cleaned masks saved to {clean_masks_path}")
 
-        print(f'\nDone! Cleaned masks saved to {clean_masks_path}')
-
-        # save image tiff files as numpy
-        for image_file in tqdm(image_files, desc=f'[IMAGES] Saving {split} split as numpy arrays', leave=False):
-            # open image
-            with rio.open(image_file) as src:
-                image = src.read()
-
-            out_file = clean_images_path / image_file.name
-
-            np.save(out_file.with_suffix('.npy'), image.astype(np.uint8))
-
-        print(f'\nDone! Images saved to {clean_images_path} as numpy arrays')
-
+        # save metadata and city mask
         if split == splits[0]:
             # save metadata and city mask
-            print(f'\nSaving city mask')
+            print(f"\n[City Mask] Saving city mask")
 
             with rio.open(image_files[0]) as src:
                 image = src.read()
@@ -89,20 +89,21 @@ def main():
                 transform = src.transform
 
             _, h, w = image.shape
-            boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp').to_crs(crs)
+            boundary = gpd.read_file(DATA_PATH / "bc_boundary" / "bc_boundary.shp").to_crs(crs)
             city_mask = geometry_mask(
-                [feature['geometry'] for feature in boundary.to_dict('records')],
+                [feature["geometry"] for feature in boundary.to_dict("records")],
                 transform=transform,
                 invert=True,
                 out_shape=(h, w),
             )
 
-            city_mask_file = DATA_PATH / 'city_mask.npy'
+            city_mask_file = DATA_PATH / "misc" / "city_mask.npy"
+            city_mask_file.parent.mkdir(parents=True, exist_ok=True)
             np.save(city_mask_file, city_mask)
 
-            print(f'\nDone! City mask saved to {city_mask_file}')
+            print(f"\n[City Mask] Done! City mask saved to {city_mask_file}")
 
-    print(f"\nCleaning Complete!")
+    print(f"\n[Data Cleaning] All images and masks successfully cleaned...")
 
 if __name__ == "__main__":
     main()
