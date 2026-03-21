@@ -8,7 +8,7 @@ from .. import DATA_PATH
 class Preprocessing:
     def __init__(self, patch_size=256):
         self.patch_size = patch_size
-        self.city_mask = np.load((DATA_PATH / 'city_mask.npy'))
+        self.city_mask = np.load((DATA_PATH / "misc" / "city_mask.npy"))
         self.transform = albumentations.Compose([
             alb.HorizontalFlip(p=0.5),
             alb.VerticalFlip(p=0.5),
@@ -58,7 +58,7 @@ class Preprocessing:
         augmented = self.transform(image=image, mask=mask)
 
         # transpose image from (H, W, C) to (C, H, W) for PyTorch
-        image = np.transpose(augmented['image'], (2, 0, 1))
-        mask = augmented['mask']
+        image = np.transpose(augmented["image"], (2, 0, 1))
+        mask = augmented["mask"]
 
         return image, mask
