@@ -107,7 +107,7 @@ class HyperparameterTuning:
 
         # model
         model = LandCoverModel(
-            encoder_name=self.version,
+            encoder_name=self.encoder,
             encoder_weights="imagenet",
             in_channels=4,
             out_classes=9,
