@@ -9,7 +9,7 @@ class LandCoverDataset(Dataset):
     def __init__(self, root_dir, patch_size=256, pre_load=True):
         """
         Args:
-            root_dir: Root directory (e.g., 'data')
+            root_dir: Root directory (e.g., "data")
             patch_size: Size of patches
         """
         self.root_dir = Path(root_dir)
@@ -17,9 +17,9 @@ class LandCoverDataset(Dataset):
         self.patch_size = patch_size
 
         # get image and mask files
-        self.image_files = sorted((self.root_dir / 'images').glob('*.npy'))
-        self.mask_files = sorted((self.root_dir / 'masks').glob('*.npy'))
-        assert(len(self.image_files) == len(self.mask_files)), 'Images and masks count mismatch'
+        self.image_files = sorted((self.root_dir / "images").glob("*.npy"))
+        self.mask_files = sorted((self.root_dir / "masks").glob("*.npy"))
+        assert(len(self.image_files) == len(self.mask_files)), "Images and masks count mismatch"
 
         if len(self.image_files) == 0:
             raise RuntimeError(
