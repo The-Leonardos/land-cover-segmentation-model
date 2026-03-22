@@ -3,10 +3,11 @@ from torch.utils.data import DataLoader
 from landcover.datasets import LandCoverDataset
 from landcover.models import LandCoverModel
 from landcover.utils import get_optimizer, get_loss_fn
-from landcover.training.train import train, test
+from landcover.training.train import train
+from landcover.evaluation.test import test
 from landcover import DATA_PATH
-import wandb
 import datetime
+import wandb
 from dotenv import load_dotenv
 from tqdm import tqdm
 import os
@@ -26,20 +27,21 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # hyperparameters
-    lr = 0.0003113726892729795
-    weight_decay = 0.00002319998879589632
-    encoder_name = "resnet50"
-    encoder_out_stride = 8
+    lr = 0.003757115165562076
+    weight_decay = 0.00004663975891980877
+    encoder_name = "efficientnet-b0"
+    encoder_out_stride = 16
     encoder_depth = 4
-    aspp_dropout = 0.29585446832437284
-    decoder_channels = 256
-    decoder_atrous_rates = (12, 24, 36)
+    aspp_dropout = 0.3985338965161314
+    decoder_channels = 512
+    decoder_atrous_rates = (12, 18, 24)
     decoder_aspp_separable = False
-    batch_size = 64
-    dice_weight = 0.5082521985840872
+    batch_size = 16
+    dice_weight = 0.7504634663105381
+    patch_size = 128
 
     # training setup
-    epochs = 200
+    epochs = 300
     model_path = DATA_PATH / "models" / encoder_name
     model_path.mkdir(parents=True, exist_ok=True)
 
@@ -51,20 +53,20 @@ if __name__ == '__main__':
         project="land-cover-mapping",
         name=f"{encoder_name}/training/{date_time}",
         config={
-            "learning rate": lr,
-            "weight decay": weight_decay,
-            "encoder": encoder_name,
-            "encoder output stride": encoder_out_stride,
-            "encoder depth": encoder_depth,
-            "aspp dropout": aspp_dropout,
-            "decoder atrous rates": decoder_atrous_rates,
-            "decoder aspp separable": decoder_aspp_separable,
-            "decoder channels": decoder_channels,
-            "batch size": batch_size,
-            "dice weight": dice_weight,
+            "Learning Rate": lr,
+            "Weight Decay": weight_decay,
+            "Encoder": encoder_name,
+            "Encoder Output Stride": encoder_out_stride,
+            "Encoder Depth": encoder_depth,
+            "ASPP Dropout": aspp_dropout,
+            "Decoder Atrous Rates": decoder_atrous_rates,
+            "Decoder ASPP Separable": decoder_aspp_separable,
+            "Decoder Channels": decoder_channels,
+            "Batch Size": batch_size,
+            "Dice Weight": dice_weight,
+            "Patch Size": patch_size
         },
-        dir=str(DATA_PATH),
-        notes="This run displays the...",
+        dir=str(DATA_PATH)
     )
 
     # dataloaders
@@ -107,7 +109,7 @@ if __name__ == '__main__':
 
         if not torch.isfinite(torch.tensor(avg_train_loss)) or not torch.isfinite(torch.tensor(avg_test_loss)):
             print("Loss became NaN. Stopping training")
-            wandb.summary["Early Stop"] = "Training stopped due to "
+            wandb.summary["Early Stop"] = "Training stopped due to NaN values"
             wandb.summary["NaN Train Loss"] = avg_train_loss
             wandb.summary["NaN Test Loss"] = avg_test_loss
             wandb.finish()

@@ -45,6 +45,7 @@ class HyperparameterTuning:
             name=f"{self.encoder}/tuning/{self.version}/best_trial",
             config=best_params,
             notes=f"Best trial achieved test IoU of {best_value:.4f}",
+            dir=str(DATA_PATH),
             reinit=True
         )
         wandb.log({
