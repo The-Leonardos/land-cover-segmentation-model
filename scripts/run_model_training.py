@@ -27,21 +27,21 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # hyperparameters
-    lr = 0.003757115165562076
-    weight_decay = 0.00004663975891980877
-    encoder_name = "efficientnet-b0"
-    encoder_out_stride = 16
+    lr = 0.003920488235974936
+    weight_decay = 0.00009615552966434236
+    encoder_name = "resnet50"
+    encoder_out_stride = 8
     encoder_depth = 4
-    aspp_dropout = 0.3985338965161314
-    decoder_channels = 512
-    decoder_atrous_rates = (12, 18, 24)
+    aspp_dropout = 0.3615941301989724
+    decoder_channels = 256
+    decoder_atrous_rates = (12, 24, 36)
     decoder_aspp_separable = False
-    batch_size = 16
-    dice_weight = 0.7504634663105381
-    patch_size = 128
+    batch_size = 32
+    dice_weight = 0.5344173714762183
+    patch_size = 512
 
     # training setup
-    epochs = 300
+    epochs = 220
     model_path = DATA_PATH / "models" / encoder_name
     model_path.mkdir(parents=True, exist_ok=True)
 
@@ -70,11 +70,11 @@ if __name__ == '__main__':
     )
 
     # dataloaders
-    train_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "train"), pre_load=True)
-    test_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "test"), pre_load=True)
+    train_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "train"), train_mode=True, pre_load=True)
+    validation_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "test"), train_mode=False, pre_load=True)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    validation_loader = DataLoader(validation_dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 
     # model
     model = LandCoverModel(
@@ -104,19 +104,19 @@ if __name__ == '__main__':
     best_iou = 0
     best_epoch = 0
     for epoch in tqdm(range(epochs), desc=f"{encoder_name} Training", leave=False):
-        avg_train_loss, avg_train_iou = train(model, train_loader, optimizer, loss_fn, device=device)
-        avg_test_loss, avg_test_iou = test(model, test_loader, loss_fn, device=device)
+        avg_train_loss, train_m_iou = train(model, train_loader, optimizer, loss_fn, device=device)
+        avg_val_loss, val_m_iou = test(model, validation_loader, loss_fn, patch_size, device=device)
 
-        if not torch.isfinite(torch.tensor(avg_train_loss)) or not torch.isfinite(torch.tensor(avg_test_loss)):
+        if not torch.isfinite(torch.tensor(avg_train_loss)) or not torch.isfinite(torch.tensor(avg_val_loss)):
             print("Loss became NaN. Stopping training")
             wandb.summary["Early Stop"] = "Training stopped due to NaN values"
             wandb.summary["NaN Train Loss"] = avg_train_loss
-            wandb.summary["NaN Test Loss"] = avg_test_loss
+            wandb.summary["NaN Validation Loss"] = avg_val_loss
             wandb.finish()
             break
 
-        if avg_test_iou > best_iou:
-            best_iou = avg_test_iou
+        if val_m_iou > best_iou:
+            best_iou = val_m_iou
             best_epoch = epoch
             torch.save(
                 model.state_dict(),
@@ -126,19 +126,19 @@ if __name__ == '__main__':
         scheduler.step()
 
         wandb.log({
-            "train loss": avg_train_loss,
-            "test loss": avg_test_loss,
-            "train IoU": avg_train_iou,
-            "test IoU": avg_test_iou,
+            "Train Loss": avg_train_loss,
+            "Validation Loss": avg_val_loss,
+            "Train IoU": train_m_iou,
+            "Validation IoU": val_m_iou,
             "best IoU": best_iou,
-            "best epoch": best_epoch,
+            "Best Epoch": best_epoch,
             "learning rate": optimizer.param_groups[0]["lr"],
             "epoch": epoch,
         })
 
         torch.cuda.empty_cache()
 
-    wandb.summary["Best Test IoU"] = best_iou
+    wandb.summary["Best Validation IoU"] = best_iou
     wandb.summary["Best Epoch"] = best_epoch
     wandb.finish()
 
