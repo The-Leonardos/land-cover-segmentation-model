@@ -6,7 +6,7 @@ from src.landcover.utils.data_preprocessing import Preprocessing
 
 
 class LandCoverDataset(Dataset):
-    def __init__(self, root_dir, patch_size=256, train_mode=True, pre_load=True):
+    def __init__(self, root_dir, patch_size=256, train_mode=True, pre_load=True, minority_classes=None):
         """
         Args:
             root_dir: Root directory (e.g., "data")
@@ -16,6 +16,7 @@ class LandCoverDataset(Dataset):
         self.pre_load = pre_load
         self.patch_size = patch_size
         self.train_mode = train_mode
+        self.minority_classes = minority_classes
 
         # get image and mask files
         self.image_files = sorted((self.root_dir / "images").glob("*.npy"))
@@ -32,19 +33,25 @@ class LandCoverDataset(Dataset):
             self.images = [np.load(f) for f in self.image_files]
             self.masks = [np.load(f) for f in self.mask_files]
 
-        self.preprocess = Preprocessing(self.patch_size)
+        self.preprocess = Preprocessing(
+            patch_size=self.patch_size,
+            minority_classes=self.minority_classes
+        )
 
     def set_patch_size(self, patch_size):
         self.patch_size = patch_size
-        self.preprocess = Preprocessing(self.patch_size)
+        self.preprocess = Preprocessing(
+            patch_size=self.patch_size,
+            minority_classes=self.minority_classes
+        )
 
     def __len__(self):
         return len(self.image_files)
 
     def __getitem__(self, idx):
         if self.pre_load:
-            image = self.images[idx]
-            mask = self.masks[idx]
+            image = self.images[idx].copy()
+            mask = self.masks[idx].copy()
         else:
             image = np.load(self.image_files[idx])
             mask = np.load(self.mask_files[idx])
@@ -55,7 +62,7 @@ class LandCoverDataset(Dataset):
             image_patch = image
             mask_patch = mask.copy()
 
-        image_patch = torch.tensor(image_patch, dtype=torch.float32)
-        mask_patch = torch.tensor(mask_patch, dtype=torch.long)
+        image_patch = torch.from_numpy(image_patch).float()
+        mask_patch = torch.from_numpy(mask_patch).long()
 
         return image_patch, mask_patch
