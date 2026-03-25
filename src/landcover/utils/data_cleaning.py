@@ -6,7 +6,6 @@ from rasterio.features import geometry_mask
 from scipy.ndimage import binary_dilation, binary_erosion, label, sum_labels
 from .. import DATA_PATH
 
-
 # setup warnings and logger
 warnings.filterwarnings('ignore')
 logging.basicConfig(
@@ -19,12 +18,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Dynamic World v1 class labels
+# 0: water | 1: trees | 2: grass | 3: flooded_vegetation (removed)
+# 4: crops | 5: shrub_and_scrub | 6: built | 7: bare | 8: snow_and_ice (removed)
+VALID_CLASSES = [0, 1, 2, 4, 5, 6, 7]
+
 
 class DataCleaning:
-    def __init__(self, ignore_index: int = 255, boundary_erosion_pixels: int = 2, min_mapping_unit: int = 4):
+    def __init__(self, ignore_index: int = 255, boundary_erosion_pixels: int = 2, min_mapping_unit: int = 4,
+                 valid_classes: list = None):
         self.ignore_index = ignore_index
         self.boundary_erosion_pixels = boundary_erosion_pixels
         self.min_mapping_unit = min_mapping_unit
+        self.valid_classes = valid_classes if valid_classes is not None else VALID_CLASSES
         self.boundary = gpd.read_file(DATA_PATH / 'bc_boundary' / 'bc_boundary.shp')
 
         # Set random seed
@@ -34,7 +40,8 @@ class DataCleaning:
         logger.info(f"DataCleaning initialized: "
                     f"ignore_index={ignore_index}, "
                     f"erosion={boundary_erosion_pixels}px, "
-                    f"MMU={min_mapping_unit}px, ")
+                    f"MMU={min_mapping_unit}px, "
+                    f"valid_classes={self.valid_classes}")
 
     # ==================== COMPLETE DATA CLEANING PIPELINE ====================
     def clean_image(self, image):
@@ -53,7 +60,8 @@ class DataCleaning:
         # log final status
         nan_values = np.isnan(cleaned_image).sum()
         min_val, max_val = np.min(cleaned_image), np.max(cleaned_image)
-        logger.info(f"[Image] Cleaning Complete: {nan_values} NaN values | minimum value: {min_val}  | maximum value: {max_val} | {cleaned_image.dtype}")
+        logger.info(
+            f"[Image] Cleaning Complete: {nan_values} NaN values | minimum value: {min_val}  | maximum value: {max_val} | {cleaned_image.dtype}")
 
         return cleaned_image
 
@@ -69,6 +77,9 @@ class DataCleaning:
         # make a copy of the mask
         cleaned_mask = mask.copy()
 
+        # remove invalid classes (snow_and_ice=8, flooded_vegetation=3)
+        cleaned_mask = self._remove_invalid_classes(cleaned_mask)
+
         # fix outside boundary labels
         cleaned_mask = self._apply_boundary_mask(cleaned_mask, crs, transform)
 
@@ -82,7 +93,8 @@ class DataCleaning:
         n_ignore = np.sum(cleaned_mask == self.ignore_index)
         n_total = cleaned_mask.size
         ignore_percent = (n_ignore / n_total) * 100
-        logger.info(f"[Mask] Cleaning complete: {n_ignore}/{n_total} pixels | {ignore_percent:.2f}% set to ignore_index")
+        logger.info(
+            f"[Mask] Cleaning complete: {n_ignore}/{n_total} pixels | {ignore_percent:.2f}% set to ignore_index")
 
         return cleaned_mask
 
@@ -102,6 +114,32 @@ class DataCleaning:
         return image
 
     # ==================== DATA CLEANING: MASKS ====================
+
+    # -------------------- Remove Invalid Classes --------------------
+
+    def _remove_invalid_classes(self, mask: np.ndarray) -> np.ndarray:
+        """
+        Sets pixels of classes not in valid_classes to ignore_index.
+
+        Removes unwanted land cover classes: snow_and_ice (class 8) and
+        flooded_vegetation (class 3) from the mask before any other
+        cleaning steps are applied.
+
+        Args:
+            mask: Ground truth mask
+
+        Returns:
+            Mask with invalid class pixels set to ignore_index
+        """
+        filtered_mask = mask.copy()
+        invalid_pixels = ~np.isin(filtered_mask, self.valid_classes + [self.ignore_index])
+        filtered_mask[invalid_pixels] = self.ignore_index
+
+        n_removed = np.sum(invalid_pixels)
+        if n_removed > 0:
+            logger.info(f"[Mask] Removed {n_removed} pixels from invalid classes (snow_and_ice, flooded_vegetation)")
+
+        return filtered_mask
 
     # -------------------- Fix Boundary Labels --------------------
 
@@ -135,16 +173,16 @@ class DataCleaning:
     def _erode_boundaries(self, mask: np.ndarray) -> np.ndarray:
         """
         Apply boundary pixel erosion.
-        
+
         Reference: DATA CLEANING Step 4
         Paper: Foody (2002) - Status of land cover classification accuracy assessment
-        
+
         Identifies pixels at class boundaries and sets them to ignore_index.
         This prevents the model from learning from uncertain mixed pixels.
-        
+
         Args:
             mask: Ground truth mask
-            
+
         Returns:
             Mask with boundary class pixels set to ignore_index
         """
@@ -221,16 +259,16 @@ class DataCleaning:
     def _apply_mmp_filter(self, mask: np.ndarray) -> np.ndarray:
         """
         Apply Minimum Mapping Unit (MMU) filtering.
-        
+
         Reference: DATA CLEANING Step 5
         Paper: Teillet, Guindon & Goodenough (1982) - On the slope-aspect correction
-        
+
         Removes isolated pixel groups smaller than min_mapping_unit by
         reclassifying them to the surrounding majority class.
-        
+
         Args:
             mask: Ground truth mask
-            
+
         Returns:
             Mask with small isolated groups removed
         """
