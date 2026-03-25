@@ -23,7 +23,7 @@ class Preprocessing:
 
         # obtain a random patch within city boundaries
         while True:
-            image_patch, mask_patch, city_mask_patch = self.get_random_patch(image, mask)
+            image_patch, mask_patch, city_mask_patch = self._get_random_patch(image, mask)
 
             city_overlap = city_mask_patch.sum() / (self.patch_size * self.patch_size)
 
@@ -32,14 +32,14 @@ class Preprocessing:
 
         # augment images and mask with a 50%% chance of executing
         if random.randint(0, 1) == 1:
-            image_patch, mask_patch = self.augment(image_patch, mask_patch)
+            image_patch, mask_patch = self._augment(image_patch, mask_patch)
 
         # convert nan values to 0.0
         image_patch = np.nan_to_num(image_patch, nan=0.0)
 
         return image_patch, mask_patch
 
-    def get_random_patch(self, image, mask):
+    def _get_random_patch(self, image, mask):
         _, h, w = image.shape
         p_h = p_w = self.patch_size
 
@@ -52,7 +52,7 @@ class Preprocessing:
 
         return image_patch, mask_patch, city_mask_patch
 
-    def augment(self, image, mask):
+    def _augment(self, image, mask):
         # transpose image from (C, H, W) to (H, W, C) for Albumentations
         image = np.transpose(image, (1, 2, 0))
         augmented = self.transform(image=image, mask=mask)
