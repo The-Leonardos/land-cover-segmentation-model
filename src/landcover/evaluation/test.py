@@ -1,8 +1,8 @@
 import torch
 import segmentation_models_pytorch as smp
-from landcover.utils.util import compute_iou
+from landcover.utils.util import compute_iou, pad_to_multiple, unpad
 
-def test(model_instance, data_loader, loss_fn, device="cpu"):
+def test(model_instance, data_loader, loss_fn, patch_size, device="cpu"):
     model_instance.eval()
     total_tp = total_fp = total_fn = total_tn = None
     running_loss = 0
@@ -12,7 +12,11 @@ def test(model_instance, data_loader, loss_fn, device="cpu"):
             images = images.to(device)
             masks = masks.to(device)
 
-            outputs = model_instance(images)
+            padded, pad_h, pad_w = pad_to_multiple(images, patch_size)
+
+            outputs = model_instance(padded)
+
+            outputs = unpad(outputs, pad_h, pad_w)
 
             loss = loss_fn(outputs, masks)
             tp, fp, fn, tn = compute_iou(outputs, masks)
