@@ -18,8 +18,8 @@ class HyperparameterTuning:
         self.encoder = encoder
         self.version = version
         self.device = device
-        self.train_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "train"), pre_load=True)
-        self.test_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "test"), pre_load=True)
+        self.train_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "train"), train_mode=True, pre_load=True)
+        self.validation_dataset = LandCoverDataset((DATA_PATH / "dataset" / "clean" / "test"), train_mode=False, pre_load=True)
 
     def run(self):
         # perform optuna study
@@ -27,7 +27,7 @@ class HyperparameterTuning:
             direction="maximize",
             pruner=optuna.pruners.MedianPruner(
                 n_startup_trials=10,
-                n_warmup_steps=5,
+                n_warmup_steps=10,
                 interval_steps=1,
             )
         )
@@ -49,7 +49,8 @@ class HyperparameterTuning:
             reinit=True
         )
         wandb.log({
-            "best_test_iou": best_value,
+            "Best Validation IoU": best_value,
+            "Best Tuning Trial": best_trial.number,
         })
         wandb.finish()
 
@@ -75,7 +76,7 @@ class HyperparameterTuning:
         decoder_aspp_separable = trial.suggest_categorical("decoder_aspp_separable", [True, False])
         batch_size = trial.suggest_categorical("batch_size", [8, 16, 32, 64])
         dice_weight = trial.suggest_float("dice_weight", 0.4, 0.8)
-        patch_size = trial.suggest_categorical("patch_size", [128, 256, 512])
+        patch_size = trial.suggest_categorical("patch_size", [256, 512])
 
         # initialize wandb run
         wandb.init(
@@ -101,10 +102,10 @@ class HyperparameterTuning:
 
         # dataloaders
         self.train_dataset.set_patch_size(patch_size)
-        self.test_dataset.set_patch_size(patch_size)
+        self.validation_dataset.set_patch_size(patch_size)
 
         train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-        test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        validation_loader = DataLoader(self.validation_dataset, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 
         # model
         model = LandCoverModel(
@@ -123,6 +124,7 @@ class HyperparameterTuning:
 
         # optimizer
         optimizer = get_optimizer(model, lr=lr, weight_decay=weight_decay)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs)
 
         # loss
         ce_weight = 1 - dice_weight
@@ -132,20 +134,22 @@ class HyperparameterTuning:
         best_m_iou = 0
         for epoch in tqdm(range(self.epochs), desc=f"Trial {trial.number}", leave=False):
             avg_train_loss, train_m_iou = train(model, train_loader, optimizer, loss_fn, device=self.device)
-            avg_test_loss, test_m_iou = test(model, test_loader, loss_fn, device=self.device)
+            avg_val_loss, val_m_iou = test(model, validation_loader, loss_fn, patch_size, device=self.device)
 
-            if not torch.isfinite(torch.tensor(avg_train_loss)) or not torch.isfinite(torch.tensor(avg_test_loss)):
+            scheduler.step()
+
+            if not torch.isfinite(torch.tensor(avg_train_loss)) or not torch.isfinite(torch.tensor(avg_val_loss)):
                 wandb.finish()
                 raise optuna.exceptions.TrialPruned()
 
-            if test_m_iou > best_m_iou:
-                best_m_iou = test_m_iou
+            if val_m_iou > best_m_iou:
+                best_m_iou = val_m_iou
 
             wandb.log({
                 "Train Loss": avg_train_loss,
-                "Test Loss": avg_test_loss,
+                "Validation Loss": avg_val_loss,
                 "Train mIoU": train_m_iou,
-                "Test mIoU": test_m_iou,
+                "Validation mIoU": val_m_iou,
                 "Best mIoU": best_m_iou,
                 "Epoch": epoch
             })
@@ -159,6 +163,6 @@ class HyperparameterTuning:
             torch.cuda.empty_cache()
 
         torch.cuda.empty_cache()
-        wandb.summary["Best Test mIoU"] = best_m_iou
+        wandb.summary["Best Validation mIoU"] = best_m_iou
         wandb.finish()
         return best_m_iou
