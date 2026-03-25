@@ -6,7 +6,7 @@ from src.landcover.utils.data_preprocessing import Preprocessing
 
 
 class LandCoverDataset(Dataset):
-    def __init__(self, root_dir, patch_size=256, pre_load=True):
+    def __init__(self, root_dir, patch_size=256, train_mode=True, pre_load=True):
         """
         Args:
             root_dir: Root directory (e.g., "data")
@@ -15,6 +15,7 @@ class LandCoverDataset(Dataset):
         self.root_dir = Path(root_dir)
         self.pre_load = pre_load
         self.patch_size = patch_size
+        self.train_mode = train_mode
 
         # get image and mask files
         self.image_files = sorted((self.root_dir / "images").glob("*.npy"))
@@ -48,7 +49,11 @@ class LandCoverDataset(Dataset):
             image = np.load(self.image_files[idx])
             mask = np.load(self.mask_files[idx])
 
-        image_patch, mask_patch = self.preprocess.run(image, mask)
+        if self.train_mode:
+            image_patch, mask_patch = self.preprocess.run(image, mask)
+        else:
+            image_patch = image
+            mask_patch = mask.copy()
 
         image_patch = torch.tensor(image_patch, dtype=torch.float32)
         mask_patch = torch.tensor(mask_patch, dtype=torch.long)
