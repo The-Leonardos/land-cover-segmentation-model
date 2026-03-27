@@ -37,10 +37,7 @@ def compute_iou(outputs, masks):
     return tp, fp, fn, tn
 
 def pad_image(image, patch_size):
-    if (len(image.shape) == 4):
-        _, _, h, w = image.shape
-    else:
-        _, h, w = image.shape
+    *_, h, w = image.shape
 
     pad_h = (patch_size - h % patch_size) % patch_size
     pad_w = (patch_size - w % patch_size) % patch_size
@@ -51,7 +48,7 @@ def pad_image(image, patch_size):
 
 def unpad_image(pred, pad_h, pad_w):
     if pad_h > 0:
-        pred = pred[:, :, :-pad_h, :]
+        pred = pred[..., :-pad_h, :]
     if pad_w > 0:
-        pred = pred[:, :, :, :-pad_w]
+        pred = pred[..., :, :-pad_w]
     return pred
