@@ -11,6 +11,7 @@ class LandCoverModel(nn.Module):
             classes=out_classes,
             **kwargs
         )
+        self.out_classes = out_classes
 
     def forward(self, x):
         return self.model(x)
