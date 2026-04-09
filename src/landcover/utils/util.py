@@ -3,17 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import segmentation_models_pytorch as smp
-import numpy as np
-from landcover import DATA_PATH
-
 
 def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
-    weights = np.load(DATA_PATH / "misc" / "class_weights.npy")
-    class_weights = torch.tensor(weights, dtype=torch.float32)
-    class_weights = class_weights.cuda() if torch.cuda.is_available() else class_weights
-
     dice_loss = smp.losses.DiceLoss(mode='multiclass', ignore_index=255)
-    ce_loss = nn.CrossEntropyLoss(weight=class_weights, ignore_index=255)
+    ce_loss = nn.CrossEntropyLoss(weight=None, label_smoothing=0.05, ignore_index=255)
 
     def loss(pred, target):
         return (dice_weight * dice_loss(pred, target)) + ce_weight * ce_loss(pred, target)
@@ -23,14 +16,14 @@ def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
 def get_optimizer(model, lr=1e-4, weight_decay=1e-4):
     return optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-def compute_iou(outputs, masks):
+def compute_iou(outputs, masks, num_classes):
     preds = torch.argmax(outputs, dim=1)
 
     tp, fp, fn, tn = smp.metrics.get_stats(
         preds,
         masks,
         mode='multiclass',
-        num_classes=9,
+        num_classes=num_classes,
         ignore_index=255
     )
 
