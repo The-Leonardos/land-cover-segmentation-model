@@ -54,8 +54,7 @@ class Preprocessing:
             break
 
         if self.rng.integers(0, 2) == 1:
-            augmented = self.transform(image=image_patch, mask=mask_patch)
-            image_patch, mask_patch = augmented["image"], augmented["mask"]
+            image_patch, mask_patch = self._augment(image=image_patch, mask=mask_patch)
 
         # convert nan values to 0.0
         image_patch = np.nan_to_num(image_patch, nan=0.0)
