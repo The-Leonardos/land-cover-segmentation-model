@@ -13,7 +13,7 @@ class Preprocessing:
         self.rng = np.random.default_rng(seed)
 
         self.city_mask = np.load((DATA_PATH / "misc" / "city_mask.npy"))
-        self.min_valid_ratio = 0.2
+        self.min_valid_ratio = 0.5
 
         self.transform = albumentations.Compose([
             alb.HorizontalFlip(p=0.5),
@@ -46,7 +46,7 @@ class Preprocessing:
             if city_ratio < self.min_valid_ratio:
                 continue
 
-            if oversample_class is not None and random.random() < 0.3:
+            if oversample_class is not None and random.random() < 0.6:
                 minority_ratio = (mask_patch == oversample_class).sum() / (self.patch_size ** 2)
                 if minority_ratio < 0.02 and attempts < max_attempts:
                     continue
@@ -78,8 +78,8 @@ class Preprocessing:
                 y_start = self.rng.integers(0, h - p_h)
                 x_start = self.rng.integers(0, w - p_w)
         else:
-            x_start = self.rng.integers(0, h - p_h)
-            y_start = self.rng.integers(0, w - p_w)
+            y_start = self.rng.integers(0, h - p_h)
+            x_start = self.rng.integers(0, w - p_w)
 
         image_patch = image[:, y_start:y_start + p_h, x_start:x_start + p_w]
         mask_patch = mask[y_start:y_start + p_h, x_start:x_start + p_w]
