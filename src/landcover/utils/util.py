@@ -64,3 +64,8 @@ def seed_everything(seed):
 
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2 ** 32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
