@@ -6,7 +6,6 @@ import segmentation_models_pytorch as smp
 from landcover import DATA_PATH
 import numpy as np
 
-
 def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
     weights = np.load(DATA_PATH / "misc" / "class_weights.npy")
     weights = torch.tensor(weights, dtype=torch.float32).to("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,6 +33,12 @@ def compute_iou(outputs, masks, num_classes):
 
     return tp, fp, fn, tn
 
+def crop(image, mask, y, x, p):
+    return (
+        image[:, y:y+p, x:x+p],
+        mask[y:y+p, x:x+p],
+    )
+
 def pad_image(image, patch_size):
     *_, h, w = image.shape
 
@@ -45,8 +50,6 @@ def pad_image(image, patch_size):
     return padded, pad_h, pad_w
 
 def unpad_image(pred, pad_h, pad_w):
-    if pad_h > 0:
-        pred = pred[..., :-pad_h, :]
-    if pad_w > 0:
-        pred = pred[..., :, :-pad_w]
-    return pred
+    h = pred.shape[-2]
+    w = pred.shape[-1]
+    return pred[..., :h - pad_h, :w - pad_w]
