@@ -2,11 +2,12 @@ import torch
 from torch.utils.data import Dataset
 from pathlib import Path
 import numpy as np
-from src.landcover.utils.data_preprocessing import Preprocessing
+from landcover.utils.data_preprocessing import Preprocessing
+from landcover import MINORITY_CLASSES
 
 
 class LandCoverDataset(Dataset):
-    def __init__(self, root_dir, patch_size=256, train_mode=True, pre_load=True, minority_classes=None, seed=None):
+    def __init__(self, root_dir, patch_size=256, train_mode=True, pre_load=True):
         """
         Args:
             root_dir: Root directory (e.g., "data")
@@ -16,9 +17,7 @@ class LandCoverDataset(Dataset):
         self.pre_load = pre_load
         self.patch_size = patch_size
         self.train_mode = train_mode
-        self.minority_classes = minority_classes
-        self.seed = seed
-        self.rng = np.random.default_rng(seed)
+        self.minority_classes = MINORITY_CLASSES
 
         # get image and mask files
         self.image_files = sorted((self.root_dir / "images").glob("*.npy"))
@@ -37,19 +36,11 @@ class LandCoverDataset(Dataset):
 
         self.preprocess = Preprocessing(
             patch_size=self.patch_size,
-            minority_classes=self.minority_classes,
-            seed=self.seed
         )
 
     def set_patch_size(self, patch_size):
         self.patch_size = patch_size
         self.preprocess.patch_size = patch_size
-
-    def set_seed(self, seed):
-        self.seed = seed
-        self.rng = np.random.default_rng(seed)
-        self.preprocess.seed = seed
-        self.preprocess.rng = np.random.default_rng(seed)
 
     def __len__(self):
         return len(self.image_files)
