@@ -3,13 +3,12 @@ import numpy as np
 import albumentations as alb
 from .. import DATA_PATH
 from landcover.utils import crop
-from landcover import PATCH_SAMPLING_PROBS, AUGMENTATION_PROBS
+from landcover import PATCH_SAMPLING_PROBS, AUGMENTATION_PROBS, MINORITY_CLASSES, MIN_VALID_RATIO, IGNORE_INDEX
 
 
 class Preprocessing:
-    def __init__(self, patch_size=256, minority_classes=None):
+    def __init__(self, patch_size=256):
         self.patch_size = patch_size
-        self.minority_classes = minority_classes
 
         self.city_mask = np.load((DATA_PATH / "misc" / "city_mask.npy"))
         self.transform = albumentations.Compose([
@@ -21,7 +20,7 @@ class Preprocessing:
 
     def run(self, image, mask):
         mask = mask.copy()
-        mask[~self.city_mask] = 255
+        mask[~self.city_mask] = IGNORE_INDEX
 
         mode = np.random.choice(
             list(PATCH_SAMPLING_PROBS.keys()),
@@ -42,13 +41,20 @@ class Preprocessing:
         w = image.shape[-1]
         p = self.patch_size
 
-        if mode == "minority":
-            return self._sample_minority_patch(image, mask, h, w, p)
+        for _ in range(50):
+            if mode == "minority":
+                image_patch, mask_patch = self._sample_minority_patch(image, mask, h, w, p)
+            else:
+                image_patch, mask_patch = self._sample_random_patch(image, mask, h, w, p)
 
-        return self._sample_random_patch(image, mask, h, w, p)
+            valid = (mask_patch != IGNORE_INDEX)
+            if valid.mean() >= MIN_VALID_RATIO:
+                return image_patch, mask_patch
+
+        return image_patch, mask_patch
 
     def _sample_minority_patch(self, image, mask, h, w, p):
-        coords = np.argwhere(np.isin(mask, self.minority_classes))
+        coords = np.argwhere(np.isin(mask, MINORITY_CLASSES))
 
         if len(coords) == 0:
             return self._sample_random_patch(image, mask, h, w, p)
@@ -68,7 +74,8 @@ class Preprocessing:
 
         return crop(image, mask, y_start, x_start, p)
 
-    def _sample_random_patch(self, image, mask, h, w, p):
+    @staticmethod
+    def _sample_random_patch(image, mask, h, w, p):
         y = np.random.randint(0, h - p)
         x = np.random.randint(0, w - p)
 
