@@ -55,7 +55,7 @@ class DataCleaning:
         cleaned_image = image.astype(np.float32).copy()
 
         # fill NaN values with band-wise median values
-        cleaned_image = self._fill_nan_with_median(cleaned_image)
+        cleaned_image = self._fill_nan_with_zero(cleaned_image)
 
         # log final status
         nan_values = np.isnan(cleaned_image).sum()
@@ -65,7 +65,7 @@ class DataCleaning:
 
         return cleaned_image
 
-    def clean_mask(self, mask, crs, transform):
+    def clean_mask(self, mask, crs, transform, is_train_set=False):
         """
         Apply the complete data cleaning pipeline to a mask.
 
@@ -78,16 +78,18 @@ class DataCleaning:
         cleaned_mask = mask.copy()
 
         # remove invalid classes (snow_and_ice=8, flooded_vegetation=3)
-        cleaned_mask = self._remove_invalid_classes(cleaned_mask)
+        # cleaned_mask = self._remove_invalid_classes(cleaned_mask)
+        cleaned_mask = self._remap_classes(cleaned_mask)
 
         # fix outside boundary labels
         cleaned_mask = self._apply_boundary_mask(cleaned_mask, crs, transform)
 
-        # apply boundary pixel erosion
-        cleaned_mask = self._erode_boundaries(cleaned_mask)
+        if is_train_set:
+            # apply boundary pixel erosion
+            cleaned_mask = self._erode_boundaries(cleaned_mask)
 
-        # apply minimum mapping unit filtering
-        cleaned_mask = self._apply_mmp_filter(cleaned_mask)
+            # apply minimum mapping unit filtering
+            cleaned_mask = self._apply_mmp_filter(cleaned_mask)
 
         # log final status
         n_ignore = np.sum(cleaned_mask == self.ignore_index)
@@ -99,17 +101,10 @@ class DataCleaning:
         return cleaned_mask
 
     # ==================== DATA CLEANING: IMAGES ====================
-    def _fill_nan_with_median(self, image):
+    def _fill_nan_with_zero(self, image):
         for b in range(image.shape[0]):
             band = image[b]
-            mask = np.isnan(band)
-
-            if np.any(mask):
-                if np.all(mask):
-                    band[mask] = 0.0
-                else:
-                    median = np.nanmedian(band)
-                    band[mask] = median
+            band[np.isnan(band)] = 0.0
 
         return image
 
@@ -140,6 +135,24 @@ class DataCleaning:
             logger.info(f"[Mask] Removed {n_removed} pixels from invalid classes (snow_and_ice, flooded_vegetation)")
 
         return filtered_mask
+
+    def _remap_classes(self, mask: np.ndarray) -> np.ndarray:
+        class_mapping = {
+            0: 0, # water
+            1: 1, # trees
+            2: 2, # grass
+            4: 3, # crops
+            5: 4, # shrub
+            6: 5, # built
+            7: 6  # bare
+        }
+
+        remapped = np.full_like(mask, self.ignore_index)
+
+        for old, new in class_mapping.items():
+            remapped[mask == old] = new
+
+        return remapped
 
     # -------------------- Fix Boundary Labels --------------------
 
