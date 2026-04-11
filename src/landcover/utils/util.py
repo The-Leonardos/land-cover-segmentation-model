@@ -5,6 +5,7 @@ import torch.optim as optim
 import segmentation_models_pytorch as smp
 from landcover import DATA_PATH
 import numpy as np
+import random
 
 def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
     weights = np.load(DATA_PATH / "misc" / "class_weights.npy")
@@ -53,3 +54,13 @@ def unpad_image(pred, pad_h, pad_w):
     h = pred.shape[-2]
     w = pred.shape[-1]
     return pred[..., :h - pad_h, :w - pad_w]
+
+def seed_everything(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = True
