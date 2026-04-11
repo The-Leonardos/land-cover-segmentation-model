@@ -3,10 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import segmentation_models_pytorch as smp
+from landcover import DATA_PATH
+import numpy as np
+
 
 def get_loss_fn(dice_weight=0.5, ce_weight=0.5):
+    weights = np.load(DATA_PATH / "misc" / "class_weights.npy")
+    weights = torch.tensor(weights, dtype=torch.float32).to("cuda" if torch.cuda.is_available() else "cpu")
     dice_loss = smp.losses.DiceLoss(mode='multiclass', ignore_index=255)
-    ce_loss = nn.CrossEntropyLoss(weight=None, label_smoothing=0.05, ignore_index=255)
+    ce_loss = nn.CrossEntropyLoss(weight=weights, label_smoothing=0.05, ignore_index=255)
 
     def loss(pred, target):
         return (dice_weight * dice_loss(pred, target)) + ce_weight * ce_loss(pred, target)
@@ -22,7 +27,7 @@ def compute_iou(outputs, masks, num_classes):
     tp, fp, fn, tn = smp.metrics.get_stats(
         preds,
         masks,
-        mode='multiclass',
+        mode="multiclass",
         num_classes=num_classes,
         ignore_index=255
     )
@@ -35,7 +40,7 @@ def pad_image(image, patch_size):
     pad_h = (patch_size - h % patch_size) % patch_size
     pad_w = (patch_size - w % patch_size) % patch_size
 
-    padded = F.pad(image, (0, pad_w, 0, pad_h))
+    padded = F.pad(image, (0, pad_w, 0, pad_h), mode="reflect")
 
     return padded, pad_h, pad_w
 
