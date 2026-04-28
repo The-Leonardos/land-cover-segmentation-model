@@ -8,9 +8,9 @@ DATA_PATH = PROJECT_ROOT / 'data'
 # Classes
 NUM_CLASSES = 7
 MINORITY_CLASSES = [0, 6, 3, 4]
-MIN_VALID_RATIO = 0.6
+MIN_VALID_RATIO = 0.7
 IGNORE_INDEX = 255
 
 # Probability of Patch Types and Augmentation
-PATCH_SAMPLING_PROBS = {"minority": 0.7, "random": 0.3}
+PATCH_SAMPLING_PROBS = {"minority": 0.6, "random": 0.4}
 AUGMENTATION_PROBS = 0.5
