@@ -20,7 +20,7 @@ def main():
     # initialize cleaner
     cleaner = DataCleaning(
         ignore_index=255,
-        boundary_erosion_pixels=0,
+        boundary_erosion_pixels=1,
         min_mapping_unit=4
     )
 
@@ -69,7 +69,7 @@ def main():
                 transform = src.transform
 
             # Clean the mask
-            cleaned_mask = cleaner.clean_mask(mask, crs, transform)
+            cleaned_mask = cleaner.clean_mask(mask, crs, transform, is_train_set=(split == "train"))
 
             # Save cleaned mask
             out_file = clean_masks_path / mask_file.name
