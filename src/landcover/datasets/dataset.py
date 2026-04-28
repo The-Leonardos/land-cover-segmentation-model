@@ -34,9 +34,13 @@ class LandCoverDataset(Dataset):
             self.images = [np.load(f) for f in self.image_files]
             self.masks = [np.load(f) for f in self.mask_files]
 
-        self.preprocess = Preprocessing(
-            patch_size=self.patch_size,
-        )
+        self.minority_coords = []
+        for i in range(len(self.mask_files)):
+            mask = self.masks[i] if self.pre_load else np.load(self.mask_files[i])
+            coords = np.argwhere(np.isin(mask, MINORITY_CLASSES))
+            self.minority_coords.append(coords)
+
+        self.preprocess = Preprocessing(patch_size=self.patch_size)
 
     def set_patch_size(self, patch_size):
         self.patch_size = patch_size
@@ -46,19 +50,25 @@ class LandCoverDataset(Dataset):
         return len(self.image_files)
 
     def __getitem__(self, idx):
+        rejected_patches = 0
+
         if self.pre_load:
-            image = self.images[idx].copy()
-            mask = self.masks[idx].copy()
+            image = self.images[idx]
+            mask = self.masks[idx]
         else:
             image = np.load(self.image_files[idx])
             mask = np.load(self.mask_files[idx])
 
+        coords = self.minority_coords[idx]
+        if coords is None or len(coords) == 0:
+            coords = None
+
         if self.train_mode:
-            image_patch, mask_patch = self.preprocess.run(image, mask)
+            image_patch, mask_patch, rejected_patches = self.preprocess.run(image, mask, coords)
         else:
-            image_patch, mask_patch = image, mask.copy()
+            image_patch, mask_patch = image, mask
 
         image_patch = torch.from_numpy(image_patch).float()
         mask_patch = torch.from_numpy(mask_patch).long()
 
-        return image_patch, mask_patch
+        return image_patch, mask_patch, rejected_patches
