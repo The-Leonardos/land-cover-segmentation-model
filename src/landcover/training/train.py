@@ -1,22 +1,28 @@
 import torch
-import segmentation_models_pytorch as smp
-from landcover.utils.util import compute_iou
+from landcover.utils.util import compute_stats, compute_metrics_from_stats
 
 def train(model_instance, data_loader, opt, loss_fn, device="cpu", conf_matrix=None):
     model_instance.train()
     total_tp = total_fp = total_fn = total_tn = None
     running_loss = 0
 
-    for images, masks in data_loader:
+    total_patches = 0
+    total_rejections = 0
+
+    for images, masks, rejected_patches in data_loader:
         images = images.to(device)
         masks = masks.to(device)
+
+        batch_size = images.size(0)
+        total_patches += batch_size
+        total_rejections += rejected_patches.sum().item()
 
         opt.zero_grad()
 
         outputs = model_instance(images)
 
         loss = loss_fn(outputs, masks)
-        tp, fp, fn, tn = compute_iou(outputs, masks, model_instance.out_classes)
+        tp, fp, fn, tn = compute_stats(outputs, masks, model_instance.out_classes)
 
         if conf_matrix is not None:
             preds = torch.argmax(outputs, dim=1)
@@ -46,6 +52,10 @@ def train(model_instance, data_loader, opt, loss_fn, device="cpu", conf_matrix=N
             total_tn += tn
 
     avg_loss = running_loss / len(data_loader)
-    m_iou = smp.metrics.iou_score(total_tp, total_fp, total_fn, total_tn, reduction="macro")
+    metrics = compute_metrics_from_stats(total_tp, total_fp, total_fn, total_tn)
+    metrics["avg_loss"] = avg_loss
 
-    return avg_loss, m_iou.item()
+    metrics["total_patches"] = total_patches
+    metrics["total_rejections"] = total_rejections
+
+    return metrics
