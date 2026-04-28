@@ -3,7 +3,7 @@ import numpy as np
 import albumentations as alb
 from .. import DATA_PATH
 from landcover.utils import crop
-from landcover import PATCH_SAMPLING_PROBS, AUGMENTATION_PROBS, MINORITY_CLASSES, MIN_VALID_RATIO, IGNORE_INDEX
+from landcover import PATCH_SAMPLING_PROBS, AUGMENTATION_PROBS, MIN_VALID_RATIO, IGNORE_INDEX
 
 
 class Preprocessing:
@@ -11,6 +11,7 @@ class Preprocessing:
         self.patch_size = patch_size
 
         self.city_mask = np.load((DATA_PATH / "misc" / "city_mask.npy"))
+
         self.transform = albumentations.Compose([
             alb.HorizontalFlip(p=0.5),
             alb.VerticalFlip(p=0.5),
@@ -18,7 +19,7 @@ class Preprocessing:
             alb.RandomBrightnessContrast(p=0.3),
         ])
 
-    def run(self, image, mask):
+    def run(self, image, mask, minority_coords=None):
         mask = mask.copy()
         mask[~self.city_mask] = IGNORE_INDEX
 
@@ -27,35 +28,36 @@ class Preprocessing:
             p=list(PATCH_SAMPLING_PROBS.values()),
         )
 
-        image_patch, mask_patch = self._get_random_patch(image, mask, mode)
+        image_patch, mask_patch, rejected_patches = self._get_random_patch(image, mask, mode, minority_coords)
 
         if np.random.rand() < AUGMENTATION_PROBS:
             image_patch, mask_patch = self._augment(image_patch, mask_patch)
 
-        image_patch = np.nan_to_num(image_patch, nan=0.0)
+        return image_patch, mask_patch, rejected_patches
 
-        return image_patch, mask_patch
-
-    def _get_random_patch(self, image, mask, mode):
+    def _get_random_patch(self, image, mask, mode, minority_coords):
         h = image.shape[-2]
         w = image.shape[-1]
         p = self.patch_size
 
-        for _ in range(50):
-            if mode == "minority":
-                image_patch, mask_patch = self._sample_minority_patch(image, mask, h, w, p)
+        rejected_patches = 0
+
+        for _ in range(10):
+            if mode == "minority" and minority_coords is not None:
+                image_patch, mask_patch = self._sample_minority_patch(image, mask, minority_coords, h, w, p)
             else:
                 image_patch, mask_patch = self._sample_random_patch(image, mask, h, w, p)
 
             valid = (mask_patch != IGNORE_INDEX)
             if valid.mean() >= MIN_VALID_RATIO:
-                return image_patch, mask_patch
+                return image_patch, mask_patch, rejected_patches
 
-        return image_patch, mask_patch
+            rejected_patches += 1
 
-    def _sample_minority_patch(self, image, mask, h, w, p):
-        coords = np.argwhere(np.isin(mask, MINORITY_CLASSES))
+        image_patch, mask_patch = self._sample_random_patch(image, mask, h, w, p)
+        return image_patch, mask_patch, rejected_patches
 
+    def _sample_minority_patch(self, image, mask, coords, h, w, p):
         if len(coords) == 0:
             return self._sample_random_patch(image, mask, h, w, p)
 
